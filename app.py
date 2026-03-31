@@ -13,7 +13,6 @@ def load_data():
         low_memory=False
     )
 
-    # očisti imena stolpcev
     df.columns = (
         df.columns
         .str.strip()
@@ -25,7 +24,7 @@ def load_data():
 
 df = load_data()
 
-# --- DYNAMIC COLUMN FINDER (reši vse probleme) ---
+# --- FIND COLUMNS ---
 def find_col(df, keyword):
     for c in df.columns:
         if keyword in c:
@@ -57,16 +56,19 @@ def to_numeric(series):
 df[CENA_COL] = pd.to_numeric(to_numeric(df[CENA_COL]), errors="coerce")
 df[SIZE_COL] = pd.to_numeric(to_numeric(df[SIZE_COL]), errors="coerce")
 
+if YEAR_COL:
+    df[YEAR_COL] = pd.to_numeric(df[YEAR_COL], errors="coerce")
+
 # --- CLEAN DATA ---
 df = df.dropna(subset=[CENA_COL, SIZE_COL])
 
 df = df[
     (df[CENA_COL] > 10000) &
+    (df[CENA_COL] < 10_000_000) &
     (df[SIZE_COL] > 10) &
     (df[SIZE_COL] < 300)
 ]
 
-# €/m²
 df["CENA_NA_M2"] = df[CENA_COL] / df[SIZE_COL]
 
 # --- SIDEBAR ---
@@ -87,25 +89,37 @@ raba = st.sidebar.multiselect(
     sorted(df[RABA_COL].dropna().unique()) if RABA_COL else [],
 )
 
-# odstrani NaN za slider
+# --- SAFE PRICE SLIDER ---
 price_clean = df[CENA_COL].dropna()
+price_clean = price_clean[(price_clean > 0) & (price_clean < 10_000_000)]
+
+if price_clean.empty:
+    min_price, max_price = 0, 500000
+else:
+    min_price = int(price_clean.min())
+    max_price = int(price_clean.max())
+
+default_min = max(min_price, 100000)
+default_max = min(max_price, 400000)
+
+if default_min >= default_max:
+    default_min, default_max = min_price, max_price
 
 price_range = st.sidebar.slider(
     "Cena (€)",
-    int(price_clean.min()),
-    int(price_clean.max()),
-    (100000, 400000),
+    min_price,
+    max_price,
+    (default_min, default_max),
 )
 
-# površina (FIX)
+# --- SIZE FILTER ---
 col1, col2 = st.sidebar.columns(2)
 min_size = col1.number_input("Min m²", value=40)
 max_size = col2.number_input("Max m²", value=120)
 
-# leto
+# --- YEAR FILTER ---
 if YEAR_COL and df[YEAR_COL].notna().any():
     year_clean = df[YEAR_COL].dropna()
-
     year_range = st.sidebar.slider(
         "Leto izgradnje",
         int(year_clean.min()),
@@ -115,7 +129,7 @@ if YEAR_COL and df[YEAR_COL].notna().any():
 else:
     year_range = (1900, 2100)
 
-# --- FILTER ---
+# --- FILTER LOGIC ---
 filtered = df.copy()
 
 if obcine and OBCINA_COL:
@@ -146,7 +160,6 @@ if YEAR_COL:
 # --- UI ---
 st.title("🏠 Nepremičninski Dashboard")
 
-# KPIs
 col1, col2, col3, col4 = st.columns(4)
 
 col1.metric("Št. oglasov", len(filtered))
@@ -154,7 +167,6 @@ col2.metric("Povp. cena", f"{int(filtered[CENA_COL].mean()):,} €")
 col3.metric("Povp. m²", f"{int(filtered[SIZE_COL].mean())}")
 col4.metric("€/m²", f"{int(filtered['CENA_NA_M2'].mean())} €")
 
-# grafi
 col1, col2 = st.columns(2)
 
 with col1:
@@ -165,13 +177,13 @@ with col2:
     st.subheader("📐 €/m²")
     st.bar_chart(filtered["CENA_NA_M2"])
 
-# top deals
 st.subheader("🔥 Najboljši deali")
 
 top = filtered.sort_values("CENA_NA_M2").head(10)
 
-st.dataframe(top[[c for c in [OBCINA_COL, NASELJE_COL, SIZE_COL, CENA_COL, "CENA_NA_M2"] if c]])
+st.dataframe(
+    top[[c for c in [OBCINA_COL, NASELJE_COL, SIZE_COL, CENA_COL, "CENA_NA_M2"] if c]]
+)
 
-# tabela
 st.subheader("📋 Vsi rezultati")
 st.dataframe(filtered)
