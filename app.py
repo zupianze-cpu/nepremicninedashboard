@@ -22,7 +22,7 @@ cols = [
     "NASELJE",
     "ULICA",
     "HISNA_STEVILKA",
-    "LETO_IZGRADNJE",
+    "LETO_IZGRADNJE_DELA_STAVBE",
     "PRODANA_POVRSINA",
     "DEJANSKA_RABA_DELA_STAVBE",
     "UPORABNA_POVRSINA",
@@ -75,8 +75,8 @@ max_size = col2.number_input("Max m²", value=120)
 
 year_range = st.sidebar.slider(
     "Leto izgradnje",
-    int(df["LETO_IZGRADNJE"].min()),
-    int(df["LETO_IZGRADNJE"].max()),
+    int(df["LETO_IZGRADNJE_DELA_STAVBE"].min()),
+    int(df["LETO_IZGRADNJE_DELA_STAVBE"].max()),
     (2000, 2025),
 )
 
@@ -103,8 +103,8 @@ filtered = filtered[
 ]
 
 filtered = filtered[
-    (filtered["LETO_IZGRADNJE"] >= year_range[0]) &
-    (filtered["LETO_IZGRADNJE"] <= year_range[1])
+    (filtered["LETO_IZGRADNJE_DELA_STAVBE"] >= year_range[0]) &
+    (filtered["LETO_IZGRADNJE_DELA_STAVBE"] <= year_range[1])
 ]
 
 # --- HEADER ---
