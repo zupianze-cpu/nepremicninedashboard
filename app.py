@@ -24,6 +24,9 @@ def load_data():
 
 df = load_data()
 
+# odstrani duplicate stolpce (OBVEZNO)
+df = df.loc[:, ~df.columns.duplicated()].copy()
+
 # --- FIND COLUMNS ---
 def find_col(df, keyword):
     for c in df.columns:
@@ -186,9 +189,15 @@ st.subheader("🔥 Najboljši deali")
 
 top = filtered.sort_values("CENA_NA_M2").head(10)
 
-st.dataframe(
-    top[[c for c in [OBCINA_COL, NASELJE_COL, SIZE_COL, CENA_COL, "CENA_NA_M2"] if c]]
-)
+# varna izbira stolpcev (brez duplikatov)
+cols_show = []
+for c in [OBCINA_COL, NASELJE_COL, SIZE_COL, CENA_COL, "CENA_NA_M2"]:
+    if c and c not in cols_show and c in top.columns:
+        cols_show.append(c)
+
+top_clean = top.loc[:, ~top.columns.duplicated()].copy()
+
+st.dataframe(top_clean[cols_show])
 
 st.subheader("📋 Vsi rezultati")
 st.dataframe(filtered)
