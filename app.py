@@ -87,10 +87,13 @@ raba = st.sidebar.multiselect(
     sorted(df[RABA_COL].dropna().unique()) if RABA_COL else [],
 )
 
+# odstrani NaN za slider
+price_clean = df[CENA_COL].dropna()
+
 price_range = st.sidebar.slider(
     "Cena (€)",
-    int(df[CENA_COL].min()),
-    int(df[CENA_COL].max()),
+    int(price_clean.min()),
+    int(price_clean.max()),
     (100000, 400000),
 )
 
@@ -101,12 +104,12 @@ max_size = col2.number_input("Max m²", value=120)
 
 # leto
 if YEAR_COL and df[YEAR_COL].notna().any():
-    df[YEAR_COL] = pd.to_numeric(df[YEAR_COL], errors="coerce")
+    year_clean = df[YEAR_COL].dropna()
 
     year_range = st.sidebar.slider(
         "Leto izgradnje",
-        int(df[YEAR_COL].min()),
-        int(df[YEAR_COL].max()),
+        int(year_clean.min()),
+        int(year_clean.max()),
         (2000, 2025),
     )
 else:
