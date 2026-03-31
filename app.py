@@ -9,9 +9,11 @@ def load_data():
     df = pd.read_csv(
         "ETN_SLO_2025_KPP_KPP_DELISTAVB_20260329.csv",
         sep=";",
-        encoding="utf-8-sig"   # 🔥 KLJUČNO (odstrani BOM)
+        encoding="utf-8-sig",
+        low_memory=False
     )
 
+    # očisti imena stolpcev
     df.columns = (
         df.columns
         .str.strip()
@@ -23,147 +25,138 @@ def load_data():
 
 df = load_data()
 
-# --- LETO IZGRADNJE FIX ---
-if "LETO_IZGRADNJE_DELA_STAVBE" in df.columns:
-    df["LETO_IZGRADNJE"] = pd.to_numeric(
-        df["LETO_IZGRADNJE_DELA_STAVBE"],
-        errors="coerce"
-    )
-else:
-    df["LETO_IZGRADNJE"] = None
+# --- DYNAMIC COLUMN FINDER (reši vse probleme) ---
+def find_col(df, keyword):
+    for c in df.columns:
+        if keyword in c:
+            return c
+    return None
 
-# --- IZBOR STOLPCEV ---
-cols = [
-    "OBCINA",
-    "NASELJE",
-    "ULICA",
-    "HISNA_STEVILKA",
-    "LETO_IZGRADNJE",
-    "PRODANA_POVRSINA",
-    "DEJANSKA_RABA_DELA_STAVBE",
-    "UPORABNA_POVRSINA",
-    "CENA",
-]
+CENA_COL = find_col(df, "CENA")
+SIZE_COL = find_col(df, "UPORABNA")
+YEAR_COL = find_col(df, "LETO_IZGRADNJE")
+RABA_COL = find_col(df, "DEJANSKA_RABA")
+OBCINA_COL = find_col(df, "OBCINA")
+NASELJE_COL = find_col(df, "NASELJE")
 
-available_cols = [c for c in cols if c in df.columns]
-df = df[available_cols]
+# --- CHECK ---
+if not CENA_COL or not SIZE_COL:
+    st.error("Ne najdem stolpcev za CENO ali POVRŠINO")
+    st.write(df.columns.tolist())
+    st.stop()
 
 # --- CLEAN DATA ---
-df = df.dropna(subset=["CENA", "UPORABNA_POVRSINA"])
+df = df.dropna(subset=[CENA_COL, SIZE_COL])
 
 df = df[
-    (df["CENA"] > 10000) &
-    (df["UPORABNA_POVRSINA"] > 10) &
-    (df["UPORABNA_POVRSINA"] < 300)
+    (df[CENA_COL] > 10000) &
+    (df[SIZE_COL] > 10) &
+    (df[SIZE_COL] < 300)
 ]
 
 # €/m²
-df["CENA_NA_M2"] = df["CENA"] / df["UPORABNA_POVRSINA"]
+df["CENA_NA_M2"] = df[CENA_COL] / df[SIZE_COL]
 
-# --- SIDEBAR FILTERS ---
+# --- SIDEBAR ---
 st.sidebar.title("🔍 Filtri")
 
 obcine = st.sidebar.multiselect(
     "Občina",
-    sorted(df["OBCINA"].dropna().unique()) if "OBCINA" in df.columns else [],
+    sorted(df[OBCINA_COL].dropna().unique()) if OBCINA_COL else [],
 )
 
 naselja = st.sidebar.multiselect(
     "Naselje",
-    sorted(df["NASELJE"].dropna().unique()) if "NASELJE" in df.columns else [],
+    sorted(df[NASELJE_COL].dropna().unique()) if NASELJE_COL else [],
 )
 
 raba = st.sidebar.multiselect(
     "Dejanska raba",
-    sorted(df["DEJANSKA_RABA_DELA_STAVBE"].dropna().unique())
-    if "DEJANSKA_RABA_DELA_STAVBE" in df.columns else [],
+    sorted(df[RABA_COL].dropna().unique()) if RABA_COL else [],
 )
 
-# cena slider
 price_range = st.sidebar.slider(
     "Cena (€)",
-    int(df["CENA"].min()),
-    int(df["CENA"].max()),
+    int(df[CENA_COL].min()),
+    int(df[CENA_COL].max()),
     (100000, 400000),
 )
 
-# površina FIX (number input)
+# površina (FIX)
 col1, col2 = st.sidebar.columns(2)
 min_size = col1.number_input("Min m²", value=40)
 max_size = col2.number_input("Max m²", value=120)
 
-# leto slider (safe)
-if df["LETO_IZGRADNJE"].notna().any():
+# leto
+if YEAR_COL and df[YEAR_COL].notna().any():
+    df[YEAR_COL] = pd.to_numeric(df[YEAR_COL], errors="coerce")
+
     year_range = st.sidebar.slider(
         "Leto izgradnje",
-        int(df["LETO_IZGRADNJE"].min()),
-        int(df["LETO_IZGRADNJE"].max()),
+        int(df[YEAR_COL].min()),
+        int(df[YEAR_COL].max()),
         (2000, 2025),
     )
 else:
     year_range = (1900, 2100)
 
-# --- FILTER LOGIC ---
+# --- FILTER ---
 filtered = df.copy()
 
-if obcine:
-    filtered = filtered[filtered["OBCINA"].isin(obcine)]
+if obcine and OBCINA_COL:
+    filtered = filtered[filtered[OBCINA_COL].isin(obcine)]
 
-if naselja:
-    filtered = filtered[filtered["NASELJE"].isin(naselja)]
+if naselja and NASELJE_COL:
+    filtered = filtered[filtered[NASELJE_COL].isin(naselja)]
 
-if raba:
-    filtered = filtered[filtered["DEJANSKA_RABA_DELA_STAVBE"].isin(raba)]
+if raba and RABA_COL:
+    filtered = filtered[filtered[RABA_COL].isin(raba)]
 
 filtered = filtered[
-    (filtered["CENA"] >= price_range[0]) &
-    (filtered["CENA"] <= price_range[1])
+    (filtered[CENA_COL] >= price_range[0]) &
+    (filtered[CENA_COL] <= price_range[1])
 ]
 
 filtered = filtered[
-    (filtered["UPORABNA_POVRSINA"] >= min_size) &
-    (filtered["UPORABNA_POVRSINA"] <= max_size)
+    (filtered[SIZE_COL] >= min_size) &
+    (filtered[SIZE_COL] <= max_size)
 ]
 
-filtered = filtered[
-    (filtered["LETO_IZGRADNJE"] >= year_range[0]) &
-    (filtered["LETO_IZGRADNJE"] <= year_range[1])
-]
+if YEAR_COL:
+    filtered = filtered[
+        (filtered[YEAR_COL] >= year_range[0]) &
+        (filtered[YEAR_COL] <= year_range[1])
+    ]
 
-# --- HEADER ---
+# --- UI ---
 st.title("🏠 Nepremičninski Dashboard")
 
-# --- KPIs ---
+# KPIs
 col1, col2, col3, col4 = st.columns(4)
 
 col1.metric("Št. oglasov", len(filtered))
-col2.metric("Povp. cena", f"{int(filtered['CENA'].mean()):,} €")
-col3.metric("Povp. m²", f"{int(filtered['UPORABNA_POVRSINA'].mean())}")
+col2.metric("Povp. cena", f"{int(filtered[CENA_COL].mean()):,} €")
+col3.metric("Povp. m²", f"{int(filtered[SIZE_COL].mean())}")
 col4.metric("€/m²", f"{int(filtered['CENA_NA_M2'].mean())} €")
 
-# --- GRAFI ---
+# grafi
 col1, col2 = st.columns(2)
 
 with col1:
-    st.subheader("💰 Cena distribucija")
-    st.bar_chart(filtered["CENA"])
+    st.subheader("💰 Cena")
+    st.bar_chart(filtered[CENA_COL])
 
 with col2:
-    st.subheader("📐 Cena na m²")
+    st.subheader("📐 €/m²")
     st.bar_chart(filtered["CENA_NA_M2"])
 
-# --- TOP DEALS ---
-st.subheader("🔥 Najboljši deali (najnižji €/m²)")
+# top deals
+st.subheader("🔥 Najboljši deali")
 
-top_deals = filtered.sort_values("CENA_NA_M2").head(10)
+top = filtered.sort_values("CENA_NA_M2").head(10)
 
-st.dataframe(
-    top_deals[
-        [c for c in ["OBCINA", "NASELJE", "UPORABNA_POVRSINA", "CENA", "CENA_NA_M2"] if c in df.columns]
-    ]
-)
+st.dataframe(top[[c for c in [OBCINA_COL, NASELJE_COL, SIZE_COL, CENA_COL, "CENA_NA_M2"] if c]])
 
-# --- FULL TABLE ---
+# tabela
 st.subheader("📋 Vsi rezultati")
-
-st.dataframe(filtered.sort_values("CENA"))
+st.dataframe(filtered)
