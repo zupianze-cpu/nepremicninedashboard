@@ -23,15 +23,6 @@ def load_data():
 
 df = load_data()
 
-# --- PREVERI KLJUČNE STOLPCE ---
-required_cols = ["CENA", "UPORABNA_POVRSINA"]
-
-missing = [c for c in required_cols if c not in df.columns]
-if missing:
-    st.error(f"Manjkajo stolpci: {missing}")
-    st.write(df.columns.tolist())
-    st.stop()
-
 # --- LETO IZGRADNJE FIX ---
 if "LETO_IZGRADNJE_DELA_STAVBE" in df.columns:
     df["LETO_IZGRADNJE"] = pd.to_numeric(
