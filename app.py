@@ -40,21 +40,21 @@ price_range = st.sidebar.slider(
     "Cena (€)",
     int(df["CENA"].min()),
     int(df["CENA"].max()),
-    (100000, 400000),
+    (10000, 1000000),
 )
 
 size_range = st.sidebar.slider(
     "Površina (m²)",
     int(df["UPORABNA_POVRSINA"].min()),
     int(df["UPORABNA_POVRSINA"].max()),
-    (40, 120),
+    (20, 300),
 )
 
 year_range = st.sidebar.slider(
     "Leto izgradnje",
     int(df["LETO_IZGRADNJE_DELA_STAVBE"].min()),
     int(df["LETO_IZGRADNJE_DELA_STAVBE"].max()),
-    (2000, 2025),
+    (1900, 2025),
 )
 
 # --- FILTER LOGIC ---
