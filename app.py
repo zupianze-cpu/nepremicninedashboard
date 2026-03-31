@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import re
 
 st.set_page_config(layout="wide")
 
@@ -11,25 +10,45 @@ def load_data():
         "ETN_SLO_2025_KPP_KPP_DELISTAVB_20260329.csv",
         sep=";"
     )
-    df.columns = df.columns.str.strip().str.upper()
+    # normalizacija imen
+    df.columns = df.columns.str.strip().str.upper().str.replace(" ", "_")
     return df
 
 df = load_data()
 
-# --- COLUMN MAP (prilagodi če treba) ---
+# --- PREVERI KLJUČNE STOLPCE ---
+required_cols = ["CENA", "UPORABNA_POVRSINA"]
+
+missing = [c for c in required_cols if c not in df.columns]
+if missing:
+    st.error(f"Manjkajo stolpci: {missing}")
+    st.write(df.columns.tolist())
+    st.stop()
+
+# --- LETO IZGRADNJE FIX ---
+if "LETO_IZGRADNJE_DELA_STAVBE" in df.columns:
+    df["LETO_IZGRADNJE"] = pd.to_numeric(
+        df["LETO_IZGRADNJE_DELA_STAVBE"],
+        errors="coerce"
+    )
+else:
+    df["LETO_IZGRADNJE"] = None
+
+# --- IZBOR STOLPCEV ---
 cols = [
     "OBCINA",
     "NASELJE",
     "ULICA",
     "HISNA_STEVILKA",
-    "LETO_IZGRADNJE_DELA_STAVBE",
+    "LETO_IZGRADNJE",
     "PRODANA_POVRSINA",
     "DEJANSKA_RABA_DELA_STAVBE",
     "UPORABNA_POVRSINA",
     "CENA",
 ]
 
-df = df[[c for c in cols if c in df.columns]]
+available_cols = [c for c in cols if c in df.columns]
+df = df[available_cols]
 
 # --- CLEAN DATA ---
 df = df.dropna(subset=["CENA", "UPORABNA_POVRSINA"])
@@ -48,19 +67,21 @@ st.sidebar.title("🔍 Filtri")
 
 obcine = st.sidebar.multiselect(
     "Občina",
-    sorted(df["OBCINA"].dropna().unique()),
+    sorted(df["OBCINA"].dropna().unique()) if "OBCINA" in df.columns else [],
 )
 
 naselja = st.sidebar.multiselect(
     "Naselje",
-    sorted(df["NASELJE"].dropna().unique()),
+    sorted(df["NASELJE"].dropna().unique()) if "NASELJE" in df.columns else [],
 )
 
 raba = st.sidebar.multiselect(
     "Dejanska raba",
-    sorted(df["DEJANSKA_RABA_DELA_STAVBE"].dropna().unique()),
+    sorted(df["DEJANSKA_RABA_DELA_STAVBE"].dropna().unique())
+    if "DEJANSKA_RABA_DELA_STAVBE" in df.columns else [],
 )
 
+# cena slider
 price_range = st.sidebar.slider(
     "Cena (€)",
     int(df["CENA"].min()),
@@ -68,17 +89,21 @@ price_range = st.sidebar.slider(
     (100000, 400000),
 )
 
-# --- POPRAVLJEN SIZE FILTER ---
+# površina FIX (number input)
 col1, col2 = st.sidebar.columns(2)
 min_size = col1.number_input("Min m²", value=40)
 max_size = col2.number_input("Max m²", value=120)
 
-year_range = st.sidebar.slider(
-    "Leto izgradnje",
-    int(df["LETO_IZGRADNJE_DELA_STAVBE"].min()),
-    int(df["LETO_IZGRADNJE_DELA_STAVBE"].max()),
-    (2000, 2025),
-)
+# leto slider (safe)
+if df["LETO_IZGRADNJE"].notna().any():
+    year_range = st.sidebar.slider(
+        "Leto izgradnje",
+        int(df["LETO_IZGRADNJE"].min()),
+        int(df["LETO_IZGRADNJE"].max()),
+        (2000, 2025),
+    )
+else:
+    year_range = (1900, 2100)
 
 # --- FILTER LOGIC ---
 filtered = df.copy()
@@ -103,8 +128,8 @@ filtered = filtered[
 ]
 
 filtered = filtered[
-    (filtered["LETO_IZGRADNJE_DELA_STAVBE"] >= year_range[0]) &
-    (filtered["LETO_IZGRADNJE_DELA_STAVBE"] <= year_range[1])
+    (filtered["LETO_IZGRADNJE"] >= year_range[0]) &
+    (filtered["LETO_IZGRADNJE"] <= year_range[1])
 ]
 
 # --- HEADER ---
@@ -136,13 +161,7 @@ top_deals = filtered.sort_values("CENA_NA_M2").head(10)
 
 st.dataframe(
     top_deals[
-        [
-            "OBCINA",
-            "NASELJE",
-            "UPORABNA_POVRSINA",
-            "CENA",
-            "CENA_NA_M2",
-        ]
+        [c for c in ["OBCINA", "NASELJE", "UPORABNA_POVRSINA", "CENA", "CENA_NA_M2"] if c in df.columns]
     ]
 )
 
