@@ -5,7 +5,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 st.set_page_config(
-    page_title="ETN · Trg nepremičnin SLO 2025",
+    page_title="Trg nepremičnin SLO 2025 by Matjaz Smolic",
     page_icon="🏘",
     layout="wide",
     initial_sidebar_state="expanded",
