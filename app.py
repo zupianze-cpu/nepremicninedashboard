@@ -136,7 +136,7 @@ filt = filt[
 ]
 
 # ── Header ────────────────────────────────────────────────────────────────────
-st.markdown("## ETN · Trg nepremičnin SLO 2025")
+st.markdown("## Trg nepremičnin SLO 2025 by Matjaz Smolic")
 st.markdown(
     f"<div class='section-title'>Stanovanja in hiše &nbsp;·&nbsp; {len(filt):,} poslov v izboru</div>",
     unsafe_allow_html=True
