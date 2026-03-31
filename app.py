@@ -45,6 +45,18 @@ if not CENA_COL or not SIZE_COL:
     st.write(df.columns.tolist())
     st.stop()
 
+# --- PRETVORBA V ŠTEVILKE ---
+def to_numeric(series):
+    return (
+        series.astype(str)
+        .str.replace(".", "", regex=False)
+        .str.replace(",", ".", regex=False)
+        .str.replace(" ", "", regex=False)
+    )
+
+df[CENA_COL] = pd.to_numeric(to_numeric(df[CENA_COL]), errors="coerce")
+df[SIZE_COL] = pd.to_numeric(to_numeric(df[SIZE_COL]), errors="coerce")
+
 # --- CLEAN DATA ---
 df = df.dropna(subset=[CENA_COL, SIZE_COL])
 
