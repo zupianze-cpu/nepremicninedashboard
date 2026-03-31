@@ -160,12 +160,17 @@ if YEAR_COL:
 # --- UI ---
 st.title("🏠 Nepremičninski Dashboard")
 
+# --- SAFE METRICS ---
+def safe_mean(series):
+    s = series.dropna()
+    return int(s.mean()) if not s.empty else 0
+
 col1, col2, col3, col4 = st.columns(4)
 
 col1.metric("Št. oglasov", len(filtered))
-col2.metric("Povp. cena", f"{int(filtered[CENA_COL].mean()):,} €")
-col3.metric("Povp. m²", f"{int(filtered[SIZE_COL].mean())}")
-col4.metric("€/m²", f"{int(filtered['CENA_NA_M2'].mean())} €")
+col2.metric("Povp. cena", f"{safe_mean(filtered[CENA_COL]):,} €")
+col3.metric("Povp. m²", f"{safe_mean(filtered[SIZE_COL])}")
+col4.metric("€/m²", f"{safe_mean(filtered['CENA_NA_M2'])} €")
 
 col1, col2 = st.columns(2)
 
