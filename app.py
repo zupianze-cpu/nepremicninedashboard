@@ -8,10 +8,17 @@ st.set_page_config(layout="wide")
 def load_data():
     df = pd.read_csv(
         "ETN_SLO_2025_KPP_KPP_DELISTAVB_20260329.csv",
-        sep=";"
+        sep=";",
+        encoding="utf-8-sig"   # 🔥 KLJUČNO (odstrani BOM)
     )
-    # normalizacija imen
-    df.columns = df.columns.str.strip().str.upper().str.replace(" ", "_")
+
+    df.columns = (
+        df.columns
+        .str.strip()
+        .str.upper()
+        .str.replace(" ", "_")
+    )
+
     return df
 
 df = load_data()
