@@ -6,7 +6,7 @@ import random
 import re
 
 st.set_page_config(
-    page_title="ETN · Trg nepremičnin SLO 2015–2025",
+    page_title="Trg nepremičnin SLO 2015–2025",
     page_icon="🏘",
     layout="wide",
     initial_sidebar_state="expanded",
