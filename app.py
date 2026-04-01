@@ -193,13 +193,13 @@ if has_parcela:
 c1, c2, c3, c4, c5 = st.columns(5)
 with c1:
     st.markdown(f"""<div class='metric-card'>
-        <div class='metric-label'>Povp. cena / m² (upr.)</div>
+        <div class='metric-label'>Povp. cena / m² (uporabne)</div>
         <div class='metric-value'>{avg_m2_upr:,.0f} €</div>
         <div class='metric-sub'>mediana {med_m2_upr:,.0f} €/m²</div>
     </div>""", unsafe_allow_html=True)
 with c2:
     st.markdown(f"""<div class='metric-card'>
-        <div class='metric-label'>Povp. cena / m² (dela)</div>
+        <div class='metric-label'>Povp. cena / m² (skupne)</div>
         <div class='metric-value'>{avg_m2_dela:,.0f} €</div>
         <div class='metric-sub'>mediana {med_m2_dela:,.0f} €/m²</div>
     </div>""", unsafe_allow_html=True)
