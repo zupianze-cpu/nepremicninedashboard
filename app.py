@@ -255,7 +255,7 @@ tabela_cols += ["POVRSINA_DELA_STAVBE", "POVRSINA_ZA_IZRACUN",
                 "CENA", "CENA_M2_UPR", "CENA_M2_DELA",
                 "DEJANSKA_RABA_DELA_STAVBE", "LEGA_DELA_STAVBE_V_STAVBI"]
 col_names   += ["Površina", "Uporabna površina",
-                "Cena", "Cena/m² (upr.)", "Cena/m² (dela)",
+                "Cena", "Cena/m² uporabne", "Cena/m² skupne",
                 "Raba", "Lega"]
 
 if "PARCELA" in filt.columns:
