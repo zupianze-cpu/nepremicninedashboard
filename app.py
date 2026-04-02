@@ -490,6 +490,13 @@ if rc_btn:
             v = vzorec.copy()
 
             # cena/m2 = pogodbena cena / (skupna + parcela)
+            # Samo pritličja s parcelo — ostala stanovanja imajo parcelo = parkirišče
+            v = v[v["LEGA_DELA_STAVBE_V_STAVBI"].str.lower().str.contains("pritli", na=False)]
+
+            if len(v) < MIN_RC:
+                st.warning("Premalo pritličnih poslov s parcelo v vzorcu. Razširi lokacijo.")
+                st.stop()
+
             v["SKUPAJ_S_PARC"] = (
                 v["POVRSINA_DELA_STAVBE"].fillna(v["POVRSINA_ZA_IZRACUN"]) + v["PARCELA"]
             )
