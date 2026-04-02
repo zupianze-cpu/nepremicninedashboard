@@ -380,10 +380,8 @@ if rc_btn:
     MIN_RC = 5
     baza25 = df[df["LETO"] == 2025].copy() if "LETO" in df.columns else df.copy()
 
-    def trimmed(series, lo=0.10, hi=0.90):
-        p_lo, p_hi = series.quantile(lo), series.quantile(hi)
-        s = series[series.between(p_lo, p_hi)]
-        return s.mean(), s.quantile(0.25), s.quantile(0.75), len(s)
+    def trimmed(series):
+        return series.mean(), series.quantile(0.25), series.quantile(0.75), len(series)
 
     def najdi_vzorec(lok_df, upr, leto, samo_brez_parcele=False, samo_s_parcelo=False):
         for rpov, rleto, opis in [
@@ -452,7 +450,7 @@ if rc_btn:
             raz += f"- Skupna − uporabna: **{avg_razl:,.0f} €/m²** × {razlika_m2:.0f} m² = **{avg_razl*razlika_m2:,.0f} €**\n"
         st.markdown("**Razčlenitev:**")
         st.markdown(raz)
-        st.caption(f"Vzorec: {lok_ime} · {razpon_opis} · posli brez parcele · brez top/bottom 10% · samo 2025")
+        st.caption(f"Vzorec: {lok_ime} · {razpon_opis} · posli brez parcele · samo 2025")
 
     if not IMA_PARCELO:
         # ── BREZ PARCELE ──────────────────────────────────────────────────────
@@ -521,4 +519,4 @@ if rc_btn:
                 )
                 st.markdown("**Razčlenitev:**")
                 st.markdown(raz)
-                st.caption(f"Vzorec: {lok_ime} · {razpon_opis} · pritličja s parcelo > 0 · brez top/bottom 10% · samo 2025")
+                st.caption(f"Vzorec: {lok_ime} · {razpon_opis} · pritličja s parcelo > 0 · samo 2025")
