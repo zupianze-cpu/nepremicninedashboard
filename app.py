@@ -489,10 +489,7 @@ if rc_btn:
         else:
             v = vzorec.copy()
 
-            # Cena/m2 uporabne
-            avg_upr, q25_upr, q75_upr, _ = trimmed(v["CENA_M2_UPR"].dropna())
-
-            # avg_m2 za skupna+parcela: cena / (skupna + parcela)
+            # cena/m2 = pogodbena cena / (skupna + parcela)
             v["SKUPAJ_S_PARC"] = (
                 v["POVRSINA_DELA_STAVBE"].fillna(v["POVRSINA_ZA_IZRACUN"]) + v["PARCELA"]
             )
@@ -501,12 +498,12 @@ if rc_btn:
 
             avg_sp, q25_sp, q75_sp, _ = trimmed(v_ok["CENA_M2_SP"].dropna())
 
-            # Skupni m2 ki jih pokriva avg_sp = (skupna - upr) + parcela
-            ostali_m2 = razlika_m2 + rc_parcela
+            # Iskana skupna kvadratura = skupna + parcela
+            iskana_skupaj = rc_skupna + rc_parcela
 
-            cena    = avg_upr * rc_upr + avg_sp * ostali_m2
-            cena_lo = q25_upr * rc_upr + q25_sp * ostali_m2
-            cena_hi = q75_upr * rc_upr + q75_sp * ostali_m2
+            cena    = avg_sp * iskana_skupaj
+            cena_lo = q25_sp * iskana_skupaj
+            cena_hi = q75_sp * iskana_skupaj
 
             st.success(f"### Ocenjena vrednost: {cena:,.0f} €")
             k1, k2, k3, k4 = st.columns(4)
@@ -516,8 +513,7 @@ if rc_btn:
             k4.metric("Lokacija vzorca", lok_ime)
 
             raz = (
-                f"- Uporabna: **{avg_upr:,.0f} €/m²** × {rc_upr} m² = **{avg_upr*rc_upr:,.0f} €**\n"
-                f"- Skupna+parcela: **{avg_sp:,.0f} €/m²** × {ostali_m2:.0f} m² = **{avg_sp*ostali_m2:,.0f} €**\n"
+                f"- Skupna + parcela: **{avg_sp:,.0f} €/m²** × {iskana_skupaj:.0f} m² = **{cena:,.0f} €**\n"
                 f"  *(povprečje = pogodbena cena ÷ (skupna + parcela) m²)*"
             )
             st.markdown("**Razčlenitev:**")
