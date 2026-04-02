@@ -383,11 +383,12 @@ if rc_btn:
     def trimmed(series):
         return series.mean(), series.quantile(0.25), series.quantile(0.75), len(series)
 
-    def najdi_vzorec(lok_df, upr, leto, samo_brez_parcele=False, samo_s_parcelo=False):
+    def najdi_vzorec(lok_df, upr, leto, samo_brez_parcele=False, samo_s_parcelo=False, samo_pritlicje=False):
         for rpov, rleto, opis in [
             (0.10,  5, "±10% površine, ±5 let"),
             (0.20, 10, "±20% površine, ±10 let"),
             (0.30, 15, "±30% površine, ±15 let"),
+            (0.50, 20, "±50% površine, ±20 let"),
         ]:
             v = lok_df[
                 lok_df["POVRSINA_ZA_IZRACUN"].between(upr*(1-rpov), upr*(1+rpov)) &
@@ -397,6 +398,8 @@ if rc_btn:
                 v = v[v["PARCELA"] == 0]
             elif samo_s_parcelo:
                 v = v[v["PARCELA"] > 0]
+            if samo_pritlicje:
+                v = v[v["LEGA_DELA_STAVBE_V_STAVBI"].str.lower().str.contains("pritli", na=False)]
             if len(v) >= MIN_RC:
                 return v, opis
         return None, None
@@ -475,7 +478,7 @@ if rc_btn:
 
         vzorec, razpon_opis, lok_ime = None, None, None
         for lim, ldf in lokacije_rc:
-            v, ro = najdi_vzorec(ldf, rc_upr, rc_leto, samo_s_parcelo=True)
+            v, ro = najdi_vzorec(ldf, rc_upr, rc_leto, samo_s_parcelo=True, samo_pritlicje=True)
             if v is not None:
                 vzorec, razpon_opis, lok_ime = v, ro, lim
                 break
@@ -486,9 +489,6 @@ if rc_btn:
             v = vzorec.copy()
 
             # cena/m2 = pogodbena cena / (skupna + parcela)
-            # Samo pritličja s parcelo — ostala stanovanja imajo parcelo = parkirišče
-            v = v[v["LEGA_DELA_STAVBE_V_STAVBI"].str.lower().str.contains("pritli", na=False)]
-
             if len(v) < MIN_RC:
                 # Premalo vzorcev — ignoriraj parcelo, prikaži oceno kot brez parcele
                 st.info("Premalo pritličnih poslov s parcelo — parcela ni upoštevana v oceni.")
