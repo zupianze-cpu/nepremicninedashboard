@@ -360,11 +360,10 @@ st.markdown("<br>", unsafe_allow_html=True)
 st.markdown("<div class='section-title'>Kakšna je realna cena nepremičnine?</div>",
             unsafe_allow_html=True)
 st.markdown(
-    "Ocena tržne vrednosti na podlagi primerljivih prodaj iz podatkov ETN. "
-    "Vsak del površine se vrednoti posebej — uporabna, skupna in parcela imajo različno ceno/m²."
+    "Ocena tržne vrednosti na podlagi prodaj iz **2025**. "
+    "Vsak del površine se vrednoti ločeno po povprečni ceni/m² primerljivih poslov."
 )
 
-# ── Vnosni filtri ─────────────────────────────────────────────────────────────
 rc1, rc2, rc3 = st.columns(3)
 rc_obcina  = rc1.selectbox("Občina", [""] + sorted(df["OBCINA"].unique()), key="rc3_obcina")
 _naselja   = sorted(df[df["OBCINA"]==rc_obcina]["NASELJE"].unique()) if rc_obcina else sorted(df["NASELJE"].unique())
@@ -374,144 +373,115 @@ _ulice     = sorted(df[df["NASELJE"]==rc_naselje]["ULICA"].unique()) if rc_nasel
 rc_ulica   = rc3.selectbox("Ulica", [""] + _ulice, key="rc3_ulica")
 
 rd1, rd2, rd3, rd4, rd5 = st.columns(5)
-rc_upr      = rd1.number_input("Uporabna površina (m²)", 10, 1000, 60, 5, key="rc3_upr")
-rc_skupna   = rd2.number_input("Skupna površina (m²)",   10, 1000, 65, 5, key="rc3_skupna")
-rc_parcela  = rd3.number_input("Parcela/atrij (m²)",      0, 9999,  0, 5, key="rc3_parc")
-rc_leto     = rd4.number_input("Leto izgradnje",        1800, 2025, 1990, 1, key="rc3_leto")
-rc_btn      = rd5.button("🔍 Oceni", key="rc3_btn")
+rc_upr     = rd1.number_input("Uporabna površina (m²)", 10, 1000, 60, 5, key="rc3_upr")
+rc_skupna  = rd2.number_input("Skupna površina (m²)",   10, 1000, 65, 5, key="rc3_skupna")
+rc_parcela = rd3.number_input("Parcela/atrij (m²)",      0, 9999,  0, 5, key="rc3_parc")
+rc_leto    = rd4.number_input("Leto izgradnje",        1800, 2025, 1990, 1, key="rc3_leto")
+rc_btn     = rd5.button("🔍 Oceni", key="rc3_btn")
 
 if rc_btn:
-    MIN_RC = 5
+    MIN_RC     = 5
     IMA_PARCELO = rc_parcela > 0
 
-    # ── Pomožne funkcije ──────────────────────────────────────────────────────
-    def trimmed_mean(series, lo=0.10, hi=0.90):
-        """Povprečje brez spodnjih lo% in zgornjih hi% vrednosti."""
-        p_lo = series.quantile(lo)
-        p_hi = series.quantile(hi)
-        trimmed = series[series.between(p_lo, p_hi)]
-        return trimmed.mean(), trimmed.quantile(0.25), trimmed.quantile(0.75), len(trimmed)
+    # Baza: samo 2025
+    baza25 = df[df["LETO"] == 2025].copy() if "LETO" in df.columns else df.copy()
 
-    def lokacijski_vzorec(bazel, upr, leto, ima_parcelo, razpon_pov=0.10, razpon_leto=5):
-        """Vrni vzorec z danimi parametri."""
-        v = bazel[
-            bazel["POVRSINA_ZA_IZRACUN"].between(upr*(1-razpon_pov), upr*(1+razpon_pov)) &
-            bazel["LETO_IZGRADNJE_DELA_STAVBE"].between(leto-razpon_leto, leto+razpon_leto)
-        ]
-        if ima_parcelo:
-            v = v[v["PARCELA"] > 0]
-        else:
-            v = v[v["PARCELA"] == 0]
-        return v
+    def trimmed(series, lo=0.10, hi=0.90):
+        p_lo, p_hi = series.quantile(lo), series.quantile(hi)
+        s = series[series.between(p_lo, p_hi)]
+        return s.mean(), s.quantile(0.25), s.quantile(0.75), len(s)
 
-    # Lokacijski fallback — od najožjega do najširšega
+    def najdi_vzorec(lok_df, upr, leto, ima_parcelo):
+        """Trikratni fallback razponov površine in leta."""
+        for rpov, rleto, opis in [
+            (0.10,  5, "±10% površine, ±5 let"),
+            (0.20, 10, "±20% površine, ±10 let"),
+            (0.30, 15, "±30% površine, ±15 let"),
+        ]:
+            v = lok_df[
+                lok_df["POVRSINA_ZA_IZRACUN"].between(upr*(1-rpov), upr*(1+rpov)) &
+                lok_df["LETO_IZGRADNJE_DELA_STAVBE"].between(leto-rleto, leto+rleto)
+            ]
+            v = v[v["PARCELA"] > 0] if ima_parcelo else v[v["PARCELA"] == 0]
+            if len(v) >= MIN_RC:
+                return v, opis
+        return None, None
+
+    # Lokacijski fallback
     lokacije_rc = []
     if rc_ulica:
-        lokacije_rc.append(("ulica", df[df["ULICA"]==rc_ulica]))
+        lokacije_rc.append(("ulica",    baza25[baza25["ULICA"]   == rc_ulica]))
     if rc_naselje:
-        lokacije_rc.append(("naselje", df[df["NASELJE"]==rc_naselje]))
+        lokacije_rc.append(("naselje",  baza25[baza25["NASELJE"] == rc_naselje]))
     if rc_obcina:
-        lokacije_rc.append(("občina", df[df["OBCINA"]==rc_obcina]))
-    lokacije_rc.append(("Slovenija", df))
+        lokacije_rc.append(("občina",   baza25[baza25["OBCINA"]  == rc_obcina]))
+    lokacije_rc.append(("Slovenija", baza25))
 
-    # Poišči vzorec — najprej ±10%/±5let, potem ±20%/±10let, potem ±30%/±15let
-    razponi = [
-        (0.10,  5, "±10% površine, ±5 let"),
-        (0.20, 10, "±20% površine, ±10 let"),
-        (0.30, 15, "±30% površine, ±15 let"),
-    ]
-
-    vzorec_final = None
-    lok_final    = None
-    razpon_final = None
-
-    for lok_ime, lok_df in lokacije_rc:
-        for razpon_pov, razpon_leto, razpon_opis in razponi:
-            v = lokacijski_vzorec(lok_df, rc_upr, rc_leto, IMA_PARCELO, razpon_pov, razpon_leto)
-            if len(v) >= MIN_RC:
-                vzorec_final = v
-                lok_final    = lok_ime
-                razpon_final = razpon_opis
-                break
-        if vzorec_final is not None:
+    vzorec, razpon_opis, lok_ime = None, None, None
+    for lim, ldf in lokacije_rc:
+        v, ro = najdi_vzorec(ldf, rc_upr, rc_leto, IMA_PARCELO)
+        if v is not None:
+            vzorec, razpon_opis, lok_ime = v, ro, lim
             break
 
-    if vzorec_final is None:
-        st.warning(
-            "Premalo primerljivih poslov za oceno. "
-            "Razširi lokacijo ali preveri vnešene parametre."
-        )
+    if vzorec is None:
+        st.warning("Premalo primerljivih poslov. Razširi lokacijo ali prilagodi parametre.")
     else:
-        v = vzorec_final
-
-        # ── Izračun cene ──────────────────────────────────────────────────────
         razlika_m2 = max(rc_skupna - rc_upr, 0)
 
-        # Avg cena/m2 uporabne površine
-        avg_upr, p25_upr, p75_upr, n_upr = trimmed_mean(v["CENA_M2_UPR"].dropna())
+        if not IMA_PARCELO:
+            # ── Brez parcele ─────────────────────────────────────────────────
+            # Cena = avg_m2_upr × upr + avg_m2_dela × (skupna − upr)
+            avg_upr,  q25_upr,  q75_upr,  n_upr  = trimmed(vzorec["CENA_M2_UPR"].dropna())
+            avg_dela, q25_dela, q75_dela, _       = trimmed(vzorec["CENA_M2_DELA"].dropna())
 
-        # Avg cena/m2 skupne površine (dela stavbe)
-        avg_dela, p25_dela, p75_dela, _ = trimmed_mean(v["CENA_M2_DELA"].dropna())
-
-        if IMA_PARCELO:
-            # Izračunaj implicitno ceno parcele iz poslov ki imajo parcelo
-            # cena_parcele = cena_posla - avg_upr*upr - avg_dela*(skupna-upr)
-            # avg_m2_parcele = cena_parcele / parcela
-            v2 = v[v["PARCELA"]>0].copy()
-            v2["CENA_IMPL_PARCELE"] = (
-                v2["CENA"]
-                - avg_upr  * v2["POVRSINA_ZA_IZRACUN"]
-                - avg_dela * (v2["POVRSINA_DELA_STAVBE"].fillna(v2["POVRSINA_ZA_IZRACUN"]) - v2["POVRSINA_ZA_IZRACUN"])
-            )
-            v2["CENA_M2_PARCELE"] = v2["CENA_IMPL_PARCELE"] / v2["PARCELA"]
-            # Filtriraj smiselne vrednosti (0–5000 €/m2)
-            v2_ok = v2[v2["CENA_M2_PARCELE"].between(0, 5000)]
-            if len(v2_ok) >= 3:
-                avg_parc, p25_parc, p75_parc, _ = trimmed_mean(v2_ok["CENA_M2_PARCELE"])
-            else:
-                # Fallback: parcela vrednoti po 20% cene uporabne površine
-                avg_parc  = avg_upr  * 0.20
-                p25_parc  = p25_upr  * 0.20
-                p75_parc  = p75_upr  * 0.20
-
-            cena_upr_del  = avg_upr  * rc_upr
-            cena_razl_del = avg_dela * razlika_m2
-            cena_parc_del = avg_parc * rc_parcela
-            cena_total    = cena_upr_del + cena_razl_del + cena_parc_del
-
-            cena_lo = p25_upr * rc_upr + p25_dela * razlika_m2 + p25_parc * rc_parcela
-            cena_hi = p75_upr * rc_upr + p75_dela * razlika_m2 + p75_parc * rc_parcela
+            cena       = avg_upr * rc_upr + avg_dela * razlika_m2
+            cena_lo    = q25_upr * rc_upr + q25_dela * razlika_m2
+            cena_hi    = q75_upr * rc_upr + q75_dela * razlika_m2
 
             razclenjeno = (
-                f"Uporabna: {avg_upr:,.0f} €/m² × {rc_upr} m² = **{cena_upr_del:,.0f} €**  \n"
-                f"Skupna–uporabna: {avg_dela:,.0f} €/m² × {razlika_m2:.0f} m² = **{cena_razl_del:,.0f} €**  \n"
-                f"Parcela/atrij: {avg_parc:,.0f} €/m² × {rc_parcela} m² = **{cena_parc_del:,.0f} €**"
+                f"- Uporabna: **{avg_upr:,.0f} €/m²** × {rc_upr} m² = **{avg_upr*rc_upr:,.0f} €**\n"
+                f"- Skupna − uporabna: **{avg_dela:,.0f} €/m²** × {razlika_m2:.0f} m² = **{avg_dela*razlika_m2:,.0f} €**"
             )
+
         else:
-            cena_upr_del  = avg_upr  * rc_upr
-            cena_razl_del = avg_dela * razlika_m2
-            cena_total    = cena_upr_del + cena_razl_del
+            # ── S parcelo ─────────────────────────────────────────────────────
+            # avg_m2_upr: povprečna cena/m2 uporabne (ostane enaka)
+            # avg_m2_parc: cena / (skupna + parcela) — to je cena za vsak m² skupaj z vrtom
+            # Cena = avg_m2_upr × upr + avg_m2_parc × parcela
+            vzorec = vzorec.copy()
+            vzorec["SKUPAJ_M2"] = vzorec["POVRSINA_DELA_STAVBE"].fillna(
+                vzorec["POVRSINA_ZA_IZRACUN"]) + vzorec["PARCELA"]
+            vzorec["CENA_M2_SKUPAJ_PARC"] = vzorec["CENA"] / vzorec["SKUPAJ_M2"]
 
-            cena_lo = p25_upr * rc_upr + p25_dela * razlika_m2
-            cena_hi = p75_upr * rc_upr + p75_dela * razlika_m2
+            # Filtriraj nesmiselne vrednosti
+            vzorec = vzorec[vzorec["CENA_M2_SKUPAJ_PARC"].between(50, 10000)]
+
+            avg_upr,  q25_upr,  q75_upr,  _ = trimmed(vzorec["CENA_M2_UPR"].dropna())
+            avg_parc, q25_parc, q75_parc, _ = trimmed(vzorec["CENA_M2_SKUPAJ_PARC"].dropna())
+
+            cena       = avg_upr * rc_upr + avg_parc * rc_parcela
+            cena_lo    = q25_upr * rc_upr + q25_parc * rc_parcela
+            cena_hi    = q75_upr * rc_upr + q75_parc * rc_parcela
 
             razclenjeno = (
-                f"Uporabna: {avg_upr:,.0f} €/m² × {rc_upr} m² = **{cena_upr_del:,.0f} €**  \n"
-                f"Skupna–uporabna: {avg_dela:,.0f} €/m² × {razlika_m2:.0f} m² = **{cena_razl_del:,.0f} €**"
+                f"- Uporabna: **{avg_upr:,.0f} €/m²** × {rc_upr} m² = **{avg_upr*rc_upr:,.0f} €**\n"
+                f"- Parcela/atrij: **{avg_parc:,.0f} €/m²** × {rc_parcela} m² = **{avg_parc*rc_parcela:,.0f} €**\n"
+                f"  *(cena/m² parcele = pogodbena cena / (skupna + parcela) m²)*"
             )
 
         # ── Prikaz ────────────────────────────────────────────────────────────
-        st.success(f"### Ocenjena vrednost: {cena_total:,.0f} €")
+        st.success(f"### Ocenjena vrednost: {cena:,.0f} €")
 
-        ka, kb, kc, kd = st.columns(4)
-        ka.metric("Spodnji razpon", f"{cena_lo:,.0f} €")
-        kb.metric("Zgornji razpon", f"{cena_hi:,.0f} €")
-        kc.metric("Poslov v vzorcu", f"{len(v)}")
-        kd.metric("Lokacija vzorca", lok_final)
+        k1, k2, k3, k4 = st.columns(4)
+        k1.metric("Spodnji razpon (Q25)", f"{cena_lo:,.0f} €")
+        k2.metric("Zgornji razpon (Q75)", f"{cena_hi:,.0f} €")
+        k3.metric("Poslov v vzorcu", str(len(vzorec)))
+        k4.metric("Lokacija vzorca", lok_ime)
 
-        st.markdown("**Razčlenitev ocene:**")
+        st.markdown("**Razčlenitev:**")
         st.markdown(razclenjeno)
         st.caption(
-            f"Vzorec: {lok_final} · {razpon_final} · leto izgr. ±5/10/15 · "
-            f"brez top/bottom 10% cen · {'posli s parcelo' if IMA_PARCELO else 'posli brez parcele'}"
+            f"Vzorec: {lok_ime} · {razpon_opis} · brez top/bottom 10% cen · "
+            f"{'posli s parcelo' if IMA_PARCELO else 'posli brez parcele'} · samo 2025"
         )
